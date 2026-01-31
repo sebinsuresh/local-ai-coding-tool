@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Local Coding Tool</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/editor.css">
+    <link rel="stylesheet" href="styles/popup.css">
+    <link rel="stylesheet" href="styles/mobile.css">
+</head>
+<body>
+    <header>
+        <h1>AI Local Coding Tool</h1>
+        <button id="config-btn">Settings</button>
+    </header>
+
+    <main>
+        <div id="editor-container"></div>
+        
+        <div id="config-panel" class="hidden">
+            <h2>Configuration</h2>
+            <div class="form-group">
+                <label for="api-endpoint">API Endpoint</label>
+                <input type="text" id="api-endpoint" placeholder="https://api.openai.com/v1">
+            </div>
+            <div class="form-group">
+                <label for="api-key">API Key</label>
+                <input type="password" id="api-key">
+            </div>
+            <div class="form-group">
+                <label for="model">Model</label>
+                <input type="text" id="model" placeholder="gpt-3.5-turbo">
+            </div>
+            <div class="button-group">
+                <button id="save-config">Save</button>
+                <button id="close-config">Cancel</button>
+            </div>
+        </div>
+
+        <button id="modify-btn" class="action-button">Modify Code</button>
+    </main>
+
+    <script src="dist/bundle.js"></script>
+</body>
+</html>

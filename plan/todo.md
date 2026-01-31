@@ -1,41 +1,5 @@
 # TODO - Development Tasks
 
-## Phase 1: Project Setup & Skeleton
-
-### Repository Setup
-- [ ] Initialize npm project (`package.json`)
-- [ ] Install TypeScript as dev dependency
-- [ ] Install ESBuild as dev dependency
-- [ ] Install CodeMirror 6 core packages (minimal set)
-- [ ] Create `tsconfig.json` with strict mode
-- [ ] Create `.gitignore` (node_modules, dist, .env)
-
-### Build System
-- [ ] Create ESBuild configuration script
-- [ ] Add build scripts to package.json (build, watch, clean)
-- [ ] Test build process (compile TypeScript → dist folder)
-- [ ] Verify source maps are generated
-
-### Project Structure
-- [ ] Create `src/` directory structure (core, editor, ui, ai, types)
-- [ ] Create `styles/` directory
-- [ ] Create `dist/` directory (git-ignored)
-- [ ] Create placeholder TypeScript files for each module
-
-### Basic HTML/CSS
-- [ ] Create `index.html` with semantic structure
-  - Header (title, config button)
-  - Editor container
-  - Config panel (initially hidden)
-  - "Modify Code" button
-- [ ] Create `styles/main.css` with CSS reset and variables
-- [ ] Create `styles/editor.css` for editor layout
-- [ ] Create `styles/popup.css` for minimal tooltip-like popup
-- [ ] Create `styles/mobile.css` with responsive breakpoints
-- [ ] Test mobile responsiveness in browser dev tools
-
----
-
 ## Phase 2: Core Infrastructure
 
 ### Type Definitions
