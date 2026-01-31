@@ -1,4 +1,4 @@
-# Development Checklist
+# TODO - Development Tasks
 
 ## Phase 1: Project Setup & Skeleton
 
@@ -17,23 +17,21 @@
 - [ ] Verify source maps are generated
 
 ### Project Structure
-- [ ] Create `src/` directory structure (core, editor, ai, storage, ui, types)
+- [ ] Create `src/` directory structure (core, editor, ui, ai, types)
 - [ ] Create `styles/` directory
 - [ ] Create `dist/` directory (git-ignored)
-- [ ] Create basic `index.html` with proper structure
 - [ ] Create placeholder TypeScript files for each module
 
 ### Basic HTML/CSS
 - [ ] Create `index.html` with semantic structure
   - Header (title, config button)
-  - Tab bar container
   - Editor container
   - Config panel (initially hidden)
-  - Status/AI operation overlay
+  - "Modify Code" button
 - [ ] Create `styles/main.css` with CSS reset and variables
 - [ ] Create `styles/editor.css` for editor layout
+- [ ] Create `styles/popup.css` for minimal tooltip-like popup
 - [ ] Create `styles/mobile.css` with responsive breakpoints
-- [ ] Create `styles/animations.css` for AI status animations
 - [ ] Test mobile responsiveness in browser dev tools
 
 ---
@@ -42,17 +40,17 @@
 
 ### Type Definitions
 - [ ] Create `src/types/state.ts`
-  - Define `FileState` interface
-  - Define `AppState` interface
-  - Define `AppConfig` interface
-  - Define `UIState` interface
+  - Define `EditorState` interface (content, language, selection)
+  - Define `AppState` interface (editor, config, ui)
+  - Define `AppConfig` interface (apiEndpoint, apiKey, model)
+  - Define `UIState` interface (isPopupOpen, isAIProcessing, highlightedRange)
+  - Define `SelectionInfo` interface
 - [ ] Create `src/types/events.ts`
   - Define event name constants
   - Define event payload types
-- [ ] Create `src/types/commands.ts`
-  - Define `Command` interface
-  - Define `CommandContext` interface
-  - Define `APIRequest`/`APIResponse` types
+- [ ] Create `src/types/api.ts`
+  - Define `AIRequest` interface
+  - Define `AIResponse` interface
 
 ### EventBus Implementation
 - [ ] Create `src/core/event-bus.ts`
@@ -63,151 +61,157 @@
 
 ### State Manager Implementation
 - [ ] Create `src/core/state-manager.ts`
-- [ ] Implement state storage (using Map for files)
-- [ ] Implement state getters (getFile, getActiveFile, getConfig, etc.)
-- [ ] Implement state setters (updateFile, setActiveFile, updateConfig, etc.)
+- [ ] Implement in-memory state storage
+- [ ] Implement state getters (getContent, getSelection, getConfig, etc.)
+- [ ] Implement state setters (updateContent, updateSelection, updateConfig, etc.)
 - [ ] Emit events on state changes via EventBus
 - [ ] Create singleton instance export
 
 ---
 
-## Phase 3: Editor Layer
+## Phase 3: Editor Layer (MVP Goal)
 
 ### Editor Adapter Interface
 - [ ] Create `src/editor/editor-adapter.ts`
 - [ ] Define `IEditor` interface
-- [ ] Implement CodeMirror 6 minimal setup
-  - Basic extensions (history, lineNumbers, syntax highlighting)
-  - Language support (start with JavaScript/TypeScript)
+- [ ] Implement minimal CodeMirror 6 setup
+  - Basic extensions (history, lineNumbers, basic syntax highlighting)
+  - Language support (start with JavaScript)
 - [ ] Implement `setContent()` method
 - [ ] Implement `getContent()` method
-- [ ] Implement `setLanguage()` method
-- [ ] Implement `setReadOnly()` method
+- [ ] Implement `getSelection()` method (returns from, to, text, line numbers)
+- [ ] Implement `setHighlight()` method (mark range visually)
+- [ ] Implement `clearHighlight()` method
 - [ ] Implement `focus()` method
-- [ ] Implement `dispose()` method
 - [ ] Implement `onContentChange()` callback mechanism
+- [ ] Implement `onSelectionChange()` callback mechanism
 - [ ] Add flag to prevent onChange loops during programmatic updates
+- [ ] Mount editor to DOM on initialization
 
-### Tab Manager Implementation
-- [ ] Create `src/editor/tab-manager.ts`
-- [ ] Implement tab creation (creates new EditorAdapter instance)
-- [ ] Implement tab switching logic (swap editor in/out of DOM)
-- [ ] Implement tab closing (dispose editor, remove from state)
-- [ ] Emit tab events (created, switched, closed) via EventBus
-- [ ] Store tab order
-- [ ] Handle "no tabs open" state
+### Test Editor MVP
+- [ ] Wire up editor to HTML container
+- [ ] Verify typing works
+- [ ] Verify syntax highlighting works
+- [ ] Verify selection detection works
+- [ ] Verify content can be programmatically set
+- [ ] Test on mobile browser
 
 ---
 
-## Phase 4: UI Layer
+## Phase 4: Popup UI (MVP Goal)
 
-### UI Renderer Implementation
-- [ ] Create `src/ui/ui-renderer.ts`
-- [ ] Implement tab list rendering
-- [ ] Implement active tab highlighting
-- [ ] Implement "New Tab" button handler
-- [ ] Implement "Close Tab" button handlers
-- [ ] Implement config panel toggle
-- [ ] Implement AI status overlay (show/hide)
-- [ ] Implement AI operation text updates
-- [ ] Listen to state changes via EventBus and update UI
-- [ ] Add CSS classes for animations
+### Popup Manager Implementation
+- [ ] Create `src/ui/popup-manager.ts`
+- [ ] Create popup HTML structure (input, line display, Send/Cancel buttons)
+- [ ] Implement `open()` method
+  - Position popup near selection/cursor
+  - Show line number(s) being modified
+  - Focus input field
+- [ ] Implement `close()` method
+  - Clear input
+  - Hide popup
+  - Emit event
+- [ ] Implement ESC key handling (close when input focused)
+- [ ] Implement Send button handler (emit event with instruction)
+- [ ] Implement Cancel button handler (close popup)
+- [ ] Style popup as minimal tooltip (see styles/popup.css)
+- [ ] Make popup non-blocking (position absolute/fixed)
+
+### Test Popup MVP
+- [ ] Click button to open popup
+- [ ] Verify line numbers display correctly
+- [ ] Verify single line vs. multi-line range
+- [ ] Verify ESC closes popup
+- [ ] Verify Cancel closes popup
+- [ ] Verify editor remains editable while popup open
+- [ ] Test popup positioning on mobile
+
+---
+
+## Phase 5: Action Handler (Decoupling)
+
+### Action Handler Implementation
+- [ ] Create `src/ui/action-handler.ts`
+- [ ] Implement action registry
+- [ ] Implement `trigger()` method (emits events via EventBus)
+- [ ] Register 'openPopup' action
+- [ ] Wire up "Modify Code" button to ActionHandler.trigger('openPopup')
+
+### Integration
+- [ ] When 'openPopup' action triggered:
+  - Get current selection from EditorAdapter
+  - Emit `action:openPopup` event
+  - PopupManager listens and opens popup
+  - EditorAdapter highlights selection
+  - State Manager updates ui.isPopupOpen
+
+---
+
+## Phase 6: Config Panel
 
 ### Config Panel UI
-- [ ] Add config form to HTML (API endpoint, API key, model)
-- [ ] Implement config form submission handler
+- [ ] Add config panel to HTML (hidden by default)
+  - API endpoint input
+  - API key input
+  - Model input
+  - Save/Cancel buttons
+- [ ] Add config button to header (toggle panel visibility)
+- [ ] Implement config form submission
 - [ ] Save config to State Manager
-- [ ] Show/hide config panel on button click
-- [ ] Validate config inputs
+- [ ] Show/hide panel on button click
+- [ ] Validate config inputs (non-empty endpoint, key)
+- [ ] Close panel after saving
 
 ---
 
-## Phase 5: Storage Layer
-
-### Storage Adapter Implementation
-- [ ] Create `src/storage/storage-adapter.ts`
-- [ ] Implement File System Access API detection
-- [ ] Implement save with File System Access API
-  - Request file handle
-  - Write file content
-  - Store handle in FileState
-- [ ] Implement load with File System Access API
-- [ ] Implement fallback save (download file)
-- [ ] Implement fallback load (file input upload)
-- [ ] Implement localStorage auto-save for recovery
-- [ ] Emit storage events via EventBus
-
-### Storage UI Integration
-- [ ] Add "Save" button to UI
-- [ ] Add "Open" button to UI
-- [ ] Wire up buttons to StorageAdapter
-- [ ] Show save success/failure messages
-- [ ] Update file "dirty" state indicator
-
----
-
-## Phase 6: AI/API Layer
+## Phase 7: AI/API Layer
 
 ### API Client Implementation
 - [ ] Create `src/ai/api-client.ts`
-- [ ] Implement `configure()` method (set endpoint, API key)
+- [ ] Implement `configure()` method (set endpoint, API key, model)
 - [ ] Implement `sendRequest()` method
   - Build OpenAI-compatible request payload
+  - Include system prompt (keep simple/flexible)
+  - Include user instruction + code context
   - Send POST request with fetch API
-  - Handle response/errors
-  - Return parsed response
-- [ ] Add request timeout handling
-- [ ] Add retry logic with exponential backoff
+  - Parse response
+  - Extract modified code from response
+  - Return AIResponse
+- [ ] Add request timeout handling (30 seconds)
+- [ ] Add error handling (network errors, API errors)
 - [ ] Emit API events via EventBus (started, success, error)
 
-### Command System Implementation
-- [ ] Create `src/ai/command-system.ts`
-- [ ] Define base Command class/interface
-- [ ] Implement "Generate Code" command
-  - System prompt template
-  - User prompt builder
-  - Response handler (insert into editor)
-- [ ] Implement "Modify Code" command
-  - System prompt template
-  - User prompt builder (includes selected text)
-  - Response handler (replace selection or full content)
-- [ ] Implement "Explain Code" command (optional, show in modal)
-- [ ] Register commands in a command registry
-- [ ] Expose command execution API
-
-### AI UI Integration
-- [ ] Add AI command buttons to UI (Generate, Modify, etc.)
-- [ ] Add command input fields (e.g., "What to generate?")
-- [ ] Wire up buttons to Command System
-- [ ] Show AI processing overlay when request starts
-- [ ] Hide overlay and update editor when response received
-- [ ] Show error messages on AI failures
+### Prompt Engineering (Initial)
+- [ ] Define simple system prompt for code modification
+- [ ] Build user prompt with instruction + code + line context
+- [ ] Keep flexible for experimentation
 
 ---
 
-## Phase 7: Application Controller & Integration
+## Phase 8: Full Integration
 
 ### App Controller Implementation
 - [ ] Create `src/core/app-controller.ts`
-- [ ] Implement initialization method
+- [ ] Implement initialization method:
   - Initialize EventBus
-  - Initialize State Manager
-  - Initialize TabManager (create first tab)
-  - Initialize UI Renderer
-  - Initialize StorageAdapter
-  - Initialize APIClient
-  - Initialize Command System
-- [ ] Wire up cross-module event flows
-  - Editor changes → State updates
-  - Tab switches → Editor swaps
-  - AI requests → API calls → Editor updates
-  - Save/Load → Storage → State → Editor
-- [ ] Implement user action handlers
-  - New tab click
-  - Close tab click
-  - Save click
-  - Open click
-  - AI command clicks
+  - Initialize State Manager with default config
+  - Initialize EditorAdapter
+  - Initialize PopupManager
+  - Initialize ActionHandler
+  - Initialize APIClient with config from State
+- [ ] Wire up cross-module event flows:
+  - Editor content changes → State updates
+  - Editor selection changes → State updates
+  - Popup Send clicked → AI request flow
+  - AI response received → update editor content
+- [ ] Implement AI request workflow:
+  1. Get instruction from popup
+  2. Get selected code and line range from editor
+  3. Show processing state in popup
+  4. Call APIClient
+  5. On success: update editor content, clear highlight, close popup
+  6. On error: show error in popup, keep popup open
+- [ ] Handle popup cancel: clear highlight, close popup
 
 ### Main Entry Point
 - [ ] Create `src/main.ts`
@@ -217,50 +221,65 @@
 
 ---
 
-## Phase 8: Testing & Refinement
+## Phase 9: Testing & Polish
 
 ### Manual Testing
-- [ ] Test creating multiple tabs
-- [ ] Test switching between tabs
-- [ ] Test closing tabs
-- [ ] Test editing in multiple tabs
-- [ ] Test saving files (File System Access API)
-- [ ] Test saving files (fallback download)
-- [ ] Test opening files
-- [ ] Test AI generate command
-- [ ] Test AI modify command
-- [ ] Test API endpoint configuration
-- [ ] Test error scenarios (bad API key, network error, etc.)
-- [ ] Test mobile responsiveness on actual devices
+- [ ] Test full flow: select code → open popup → send instruction → see result
+- [ ] Test with no selection (single line at cursor)
+- [ ] Test with multi-line selection
+- [ ] Test editor editing while popup open
+- [ ] Test config panel (save, cancel)
+- [ ] Test with valid API endpoint
+- [ ] Test with invalid API endpoint (error handling)
+- [ ] Test with invalid API key (error handling)
+- [ ] Test network error scenarios
+- [ ] Test mobile responsiveness on actual device
+- [ ] Test ESC to close popup
+- [ ] Test highlight clearing
 
-### Bug Fixes & Polish
+### Bug Fixes
 - [ ] Fix any bugs found during testing
 - [ ] Improve error messages
-- [ ] Add loading states where needed
-- [ ] Ensure all animations work smoothly
-- [ ] Verify accessibility (keyboard navigation, ARIA labels)
+- [ ] Ensure smooth animations/transitions
+- [ ] Verify no console errors
 
 ### Documentation
-- [ ] Update README.md with setup instructions
-- [ ] Document API endpoint configuration
-- [ ] Document supported AI commands
-- [ ] Add usage examples/screenshots
+- [ ] Update README.md with:
+  - Setup instructions
+  - How to configure API endpoint
+  - How to use the tool
+  - Example workflow
+  - Screenshot/demo
 
 ---
 
-## Phase 9: Optimization & Enhancement (Optional)
+## Notes
 
-### Performance
-- [ ] Add debouncing to auto-save
-- [ ] Add debouncing to AI command inputs
-- [ ] Profile memory usage with many tabs
-- [ ] Optimize bundle size (check if any unused dependencies)
+### Minimal Dependencies
+- `typescript` (dev)
+- `esbuild` (dev)
+- `@codemirror/state` (runtime)
+- `@codemirror/view` (runtime)
+- `@codemirror/basic-setup` or minimal extensions (runtime)
+- `@codemirror/lang-javascript` (runtime)
 
-### User Experience
-- [ ] Add keyboard shortcuts (Ctrl+S for save, etc.)
-- [ ] Add confirmation dialog before closing unsaved tabs
-- [ ] Add file type detection from extension
-- [ ] Add syntax highlighting for more languages
+### Out of Scope for MVP
+- File saving/loading
+- Multiple tabs
+- Keyboard shortcuts
+- Advanced AI commands
+- Streaming responses
+- Diff view
+- Dark mode
+- Additional languages
+
+These will be added iteratively after MVP is working.
+
+---
+
+## Current Status
+**Phase**: Not Started
+**Next Task**: Initialize npm project
 - [ ] Add dark mode toggle
 - [ ] Add undo/redo for AI operations (separate from editor undo)
 

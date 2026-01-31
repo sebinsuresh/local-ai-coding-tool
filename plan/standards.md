@@ -1,7 +1,9 @@
 # Architecture & Coding Standards
 
 ## Project Overview
-AI-powered code editor built with CodeMirror 6 (CM6), TypeScript, and vanilla JavaScript. No frameworks. Communicates with LLM endpoints to assist with code generation and modification.
+AI-powered code editor built with CodeMirror 6, TypeScript, and vanilla JavaScript. No frameworks. Communicates with LLM endpoints to assist with code modification.
+
+**MVP Scope**: Single-file editor with minimal popup for AI-assisted code modifications. No file persistence, no tabs, simplified AI commands.
 
 ## Core Architectural Principles
 
@@ -15,57 +17,22 @@ High-level modules don't depend on low-level modules. Both depend on abstraction
 Modules communicate via a central EventBus. This decouples components and makes the system extensible.
 
 ### 4. Adapter Pattern
-External dependencies (CM6, File System API, LLM API) are wrapped in adapters. This allows swapping implementations without touching core logic.
+External dependencies (CodeMirror 6, LLM API) are wrapped in adapters. This allows swapping implementations without touching core logic.
 
 ---
 
 ## System Architecture
 
-### Layer Diagram
-```
-┌─────────────────────────────────────────────────────────┐
-│                     UI Layer (HTML/CSS)                 │
-│  - index.html                                           │
-│  - Mobile-responsive vanilla CSS                        │
-└─────────────────────────────────────────────────────────┘
-                            │
-┌─────────────────────────────────────────────────────────┐
-│                  Application Controller                 │
-│  - Coordinates all modules                              │
-│  - Initializes system                                   │
-│  - Handles user interactions from UI                    │
-└─────────────────────────────────────────────────────────┘
-                            │
-        ┌───────────────────┼───────────────────┐
-        │                   │                   │
-┌───────▼────────┐  ┌───────▼───────┐  ┌────────▼─────────┐
-│   EventBus     │  │    State      │  │  Command System  │
-│                │  │   Manager     │  │                  │
-│ - pub/sub      │  │               │  │ - Command types  │
-│ - decouples    │  │ - Files state │  │ - Prompts        │
-│   modules      │  │ - App config  │  │ - Handlers       │
-└───────┬────────┘  └──────┬────────┘  └────────┬─────────┘
-        │                  │                    │
-┌───────┴──────────────────┴────────────────────┴─────────┐
-│                    Core Modules                         │
-│                                                         │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
-│  │ TabManager   │  │EditorAdapter │  │  APIClient   │   │
-│  │              │  │              │  │              │   │
-│  │ - Tab state  │  │ - Wraps CM6  │  │ - LLM calls  │   │
-│  │ - Tab switch │  │ - Isolated   │  │ - OpenAI API │   │
-│  │ - Create/Del │  │ - Easy swap  │  │ - Config     │   │
-│  └──────────────┘  └──────────────┘  └──────────────┘   │
-│                                                         │
-│  ┌──────────────┐  ┌──────────────┐                     │
-│  │StorageAdapter│  │ UIRenderer   │                     │
-│  │              │  │              │                     │
-│  │ - File APIs  │  │ - Updates UI │                     │
-│  │ - Fallback   │  │ - Animations │                     │
-│  │ - Save/Load  │  │ - Status     │                     │
-│  └──────────────┘  └──────────────┘                     │
-└─────────────────────────────────────────────────────────┘
-```
+**Simplified MVP Architecture:**
+
+- **UI Layer**: HTML + CSS (editor container, popup, config panel)
+- **App Controller**: Initializes and coordinates modules
+- **EventBus**: Decoupled communication between modules
+- **State Manager**: In-memory state (code content, selection, config, UI state)
+- **EditorAdapter**: Wraps CodeMirror 6 for isolation
+- **PopupManager**: Handles AI modification popup (non-blocking, minimal)
+- **APIClient**: LLM API communication (OpenAI-compatible)
+- **ActionHandler**: Decoupled action handling (supports buttons + future keyboard shortcuts)
 
 ---
 
@@ -79,50 +46,48 @@ External dependencies (CM6, File System API, LLM API) are wrapped in adapters. T
 - Publish events
 - No business logic
 
-**Events** (examples):
-- `tab:created`, `tab:switched`, `tab:closed`
-- `editor:contentChanged`, `editor:cursorMoved`
+**MVP Events**:
+- `editor:contentChanged`
+- `editor:selectionChanged`
+- `action:openPopup` (decoupled from UI button)
+- `popup:opened`, `popup:closed`
 - `ai:requestStarted`, `ai:responseReceived`, `ai:error`
-- `file:saved`, `file:loaded`
 - `config:updated`
 
-**Why**: Modules can react to changes without knowing about each other.
+**Why**: Modules can react to changes without knowing about each other. ActionHandler can trigger popup from button OR keyboard shortcut.
 
 ---
 
 ### 2. State Manager
 **Purpose**: Single source of truth for application state.
 
-**State Structure**:
+**MVP State Structure**:
 ```typescript
 {
-  files: Map<fileId, FileState>,
-  activeFileId: string | null,
+  editor: {
+    content: string,
+    language: string,
+    selection: {
+      from: number,
+      to: number,
+      fromLine: number,
+      toLine: number
+    } | null
+  },
   config: {
     apiEndpoint: string,
     apiKey: string,
-    theme: string
+    model: string
   },
   ui: {
+    isPopupOpen: boolean,
     isAIProcessing: boolean,
-    currentOperation: string | null
+    highlightedRange: { from: number, to: number } | null
   }
 }
 ```
 
-**FileState**:
-```typescript
-{
-  id: string,
-  name: string,
-  content: string,
-  language: string,
-  isDirty: boolean,
-  fileHandle?: FileSystemFileHandle // for File System Access API
-}
-```
-
-**Why**: Separates state from UI. CodeMirror is just a view layer. State can be modified by user input OR AI commands.
+**Why**: Separates state from UI. CodeMirror is just a view layer. State can be modified by user input OR AI commands. In-memory only for MVP.
 
 ---
 
@@ -134,32 +99,47 @@ External dependencies (CM6, File System API, LLM API) are wrapped in adapters. T
 interface IEditor {
   setContent(content: string): void;
   getContent(): string;
-  setLanguage(language: string): void;
+  getSelection(): { from: number, to: number, text: string } | null;
+  setHighlight(from: number, to: number): void;
+  clearHighlight(): void;
   setReadOnly(readonly: boolean): void;
   focus(): void;
-  dispose(): void;
   onContentChange(callback: (content: string) => void): void;
+  onSelectionChange(callback: (selection: SelectionInfo) => void): void;
 }
 ```
 
+**Implementation**:
+- Minimal CodeMirror 6 setup (basic editing + syntax highlighting)
+- Highlight extension for marking selected code during AI operations
+- Prevent onChange loops during programmatic updates
+
 **Why**: 
-- If we want to swap CodeMirror for Monaco or Ace later, we only change this module
+- If we want to swap CodeMirror for another editor later, we only change this module
 - Rest of codebase depends on IEditor interface, not CodeMirror specifics
-- Minimal CodeMirror setup (basic editing + syntax highlighting)
 
 ---
 
-### 4. TabManager
-**Purpose**: Manages multiple editor instances and tab switching.
+### 4. PopupManager
+**Purpose**: Manages the AI modification popup.
 
 **Responsibilities**:
-- Create/destroy tabs
-- Switch active tab
-- Maintain tab order
-- Each tab has its own EditorAdapter instance
-- Swap editor instances in/out of the DOM container
+- Open/close popup
+- Position popup near selection (or cursor if no selection)
+- Display line number(s) being modified
+- Handle input field interactions
+- Emit events when user sends instruction or cancels
+- ESC key closes popup when input focused
+- Fully non-blocking (editor remains editable)
 
-**Why**: Clean separation between tab management and editing. Supports multi-file workflow.
+**Popup UI Components**:
+- Line number display (e.g., "Line 42" or "Lines 42-45")
+- Input field for AI instructions
+- "Send" button
+- "Cancel" button
+- Minimal tooltip-like styling
+
+**Why**: Decoupled popup management. Can enhance UI later without touching other modules.
 
 ---
 
@@ -169,135 +149,137 @@ interface IEditor {
 **Interface**:
 ```typescript
 interface IAPIClient {
-  sendRequest(request: APIRequest): Promise<APIResponse>;
-  configure(endpoint: string, apiKey: string): void;
+  sendRequest(request: AIRequest): Promise<AIResponse>;
+  configure(endpoint: string, apiKey: string, model: string): void;
 }
 
-interface APIRequest {
-  systemPrompt: string;
-  userPrompt: string;
-  model?: string;
-  temperature?: number;
+interface AIRequest {
+  instruction: string;      // User's instruction from popup
+  codeContext: string;      // The selected code (or current line)
+  lineRange: string;        // E.g., "42" or "42-45" for context
+}
+
+interface AIResponse {
+  modifiedCode: string;     // The code to replace selection with
+  error?: string;
 }
 ```
+
+**Implementation**:
+- OpenAI-compatible API format
+- Simple prompt construction (keep flexible for experimentation)
+- Error handling and timeout
+- No retry logic initially (keep simple)
 
 **Why**: 
 - Isolated from rest of app
-- Easy to add retry logic, streaming, error handling
-- Can mock for testing
-- OpenAI format, but could be extended
+- Easy to experiment with different prompt strategies
+- Can add more features later (streaming, retry, etc.)
 
 ---
 
-### 6. Command System
-**Purpose**: Define different AI command types with their own prompts and handlers.
-
-**Command Types** (examples):
-- `generate` - Generate new code from description
-- `modify` - Modify existing code based on instruction
-- `explain` - Explain selected code
-- `fix` - Fix errors/bugs
-- `refactor` - Refactor code
-
-**Structure**:
-```typescript
-interface Command {
-  type: string;
-  systemPromptTemplate: string;
-  buildUserPrompt(context: CommandContext): string;
-  handleResponse(response: string, context: CommandContext): void;
-}
-```
-
-**Why**: Extensible. Easy to add new command types without changing core logic.
-
----
-
-### 7. StorageAdapter
-**Purpose**: Handle file persistence with fallback strategy.
-
-**Interface**:
-```typescript
-interface IStorageAdapter {
-  save(file: FileState): Promise<void>;
-  load(): Promise<FileState>;
-  canUseFileSystemAPI(): boolean;
-}
-```
-
-**Strategy**:
-1. Try File System Access API (if available)
-2. Fallback to download/upload (older browsers)
-3. LocalStorage for auto-save/recovery
-
-**Why**: Progressive enhancement. Works everywhere.
-
----
-
-### 8. UIRenderer
-**Purpose**: Update UI based on state changes.
+### 6. ActionHandler
+**Purpose**: Decoupled action handling for triggering operations.
 
 **Responsibilities**:
-- Render tab list
-- Show/hide loading states
-- Display AI operation status ("Agent is thinking...")
-- Update configuration panel
-- Mobile-responsive layout
+- Register action handlers (e.g., "openPopup")
+- Trigger actions via events (not direct function calls)
+- Support multiple triggers (button clicks, keyboard shortcuts)
 
-**Why**: Separates DOM manipulation from business logic.
+**Pattern**:
+```typescript
+// Button clicks ActionHandler.trigger('openPopup')
+// Keyboard shortcut also triggers ActionHandler.trigger('openPopup')
+// ActionHandler emits event → PopupManager reacts
+```
+
+**Why**: 
+- Button and keyboard shortcuts can trigger same actions
+- Easy to add keyboard shortcuts later
+- Actions are testable independently of UI
 
 ---
 
-### 9. Application Controller
+### 7. Application Controller
 **Purpose**: Bootstrap and coordinate everything.
 
 **Responsibilities**:
 - Initialize all modules
 - Wire up event listeners
-- Handle user actions from UI
-- Orchestrate complex workflows (e.g., AI request → update state → update editor)
+- Handle complex workflows (AI request → update state → update editor)
+- Coordinate popup opening with editor state
 
-**Why**: Single entry point. Clear initialization flow.
+**Initialization Flow**:
+1. Initialize EventBus
+2. Initialize State Manager
+3. Initialize EditorAdapter
+4. Initialize PopupManager
+5. Initialize APIClient (with config from state)
+6. Initialize ActionHandler
+7. Wire up UI button clicks to ActionHandler
+8. Subscribe to events for cross-module coordination
+
+**Why**: Single entry point. Clear initialization flow. Orchestrates complex interactions.
 
 ---
 
 ## Data Flow Examples
 
-### User Types in Editor
+### User Opens Popup for Code Modification
 ```
-1. User types → CodeMirror onChange
-2. EditorAdapter emits `editor:contentChanged` event
-3. State Manager updates file content
-4. State Manager marks file as dirty
-5. UIRenderer updates save button state
+1. User selects code in editor (or places cursor on a line)
+2. User clicks "Modify Code" button (or presses keyboard shortcut)
+3. Button click → ActionHandler.trigger('openPopup')
+4. ActionHandler emits `action:openPopup` event
+5. PopupManager receives event
+6. PopupManager gets current selection from EditorAdapter
+7. PopupManager gets line numbers from selection
+8. PopupManager opens popup, positions it, shows line numbers
+9. EditorAdapter highlights the selected range
+10. EventBus emits `popup:opened`
+11. State Manager updates ui.isPopupOpen = true
 ```
 
-### AI Command Request
+### User Sends AI Instruction
 ```
-1. User clicks "Generate Code" button
-2. App Controller builds command context
-3. Command System creates prompts
-4. State Manager sets `ui.isAIProcessing = true`
-5. UIRenderer shows "Agent is thinking..." overlay
-6. EventBus emits `ai:requestStarted`
-7. APIClient sends request
+1. User types instruction in popup input (e.g., "wrap this in a try-catch")
+2. User clicks "Send" button (or presses Enter)
+3. PopupManager gathers:
+   - User instruction
+   - Selected code from EditorAdapter
+   - Line range
+4. EventBus emits `ai:requestStarted`
+5. State Manager updates ui.isAIProcessing = true
+6. APIClient sends request to LLM endpoint
+7. While waiting: popup shows loading state, editor selection remains highlighted
 8. Response received → EventBus emits `ai:responseReceived`
-9. Command handler processes response
-10. State Manager updates file content
-11. EditorAdapter sets new content (bypasses onChange to avoid loop)
-12. State Manager sets `ui.isAIProcessing = false`
-13. UIRenderer removes overlay
+9. App Controller processes response
+10. State Manager updates editor.content with modified code
+11. EditorAdapter sets new content (programmatically, no onChange trigger)
+12. EditorAdapter clears highlight
+13. PopupManager closes popup
+14. State Manager updates ui.isAIProcessing = false, ui.isPopupOpen = false
+15. EventBus emits `popup:closed`
 ```
 
-### Tab Switch
+### User Cancels Popup
 ```
-1. User clicks different tab
-2. App Controller calls TabManager.switchTo(fileId)
-3. TabManager detaches current editor from DOM
-4. TabManager attaches target editor to DOM
-5. State Manager updates activeFileId
-6. EventBus emits `tab:switched`
-7. UIRenderer updates active tab styling
+1. User clicks "Cancel" button or presses ESC while input focused
+2. PopupManager closes popup
+3. EditorAdapter clears highlight
+4. State Manager updates ui.isPopupOpen = false
+5. EventBus emits `popup:closed`
+```
+
+### User Edits Code While Popup Open
+```
+1. Popup is open, selection is highlighted
+2. User clicks in editor outside highlighted range
+3. User types normally - editor is fully functional
+4. EditorAdapter emits `editor:contentChanged`
+5. State Manager updates editor.content
+6. Popup remains open (non-blocking)
+7. Highlighted range still visible
 ```
 
 ---
@@ -314,45 +296,10 @@ Enable strict TypeScript checking. No `any` types without explicit reason.
 Define shared types in `src/types/` directory.
 
 ### Naming Conventions
-- Interfaces: `IEditorAdapter`, `IStorageAdapter`
-- Classes: `EditorAdapter`, `TabManager`
-- Events: `namespace:action` (e.g., `file:saved`)
+- Interfaces: `IEditor`, `IAPIClient`
+- Classes: `EditorAdapter`, `PopupManager`
+- Events: `namespace:action` (e.g., `popup:opened`)
 - Files: kebab-case (e.g., `editor-adapter.ts`)
-
----
-
-## File Structure
-```
-/
-├── index.html                 # Entry point
-├── styles/
-│   ├── main.css              # Core styles
-│   ├── editor.css            # Editor-specific
-│   ├── mobile.css            # Responsive
-│   └── animations.css        # AI status animations
-├── src/
-│   ├── main.ts               # Bootstrap
-│   ├── types/
-│   │   ├── state.ts          # State types
-│   │   ├── events.ts         # Event types
-│   │   └── commands.ts       # Command types
-│   ├── core/
-│   │   ├── event-bus.ts
-│   │   ├── state-manager.ts
-│   │   └── app-controller.ts
-│   ├── editor/
-│   │   ├── editor-adapter.ts
-│   │   └── tab-manager.ts
-│   ├── ai/
-│   │   ├── api-client.ts
-│   │   └── command-system.ts
-│   ├── storage/
-│   │   └── storage-adapter.ts
-│   └── ui/
-│       └── ui-renderer.ts
-├── dist/                      # ESBuild output
-└── package.json
-```
 
 ---
 
@@ -375,14 +322,14 @@ Define shared types in `src/types/` directory.
 ## Mobile Responsiveness
 
 ### Breakpoints
-- Desktop: > 768px - side-by-side layout (tabs + editor + config)
-- Tablet: 481-768px - stacked layout, collapsible panels
-- Mobile: ≤ 480px - single column, tabs accessible via dropdown
+- Desktop: > 768px - Config panel as sidebar, popup positioned freely
+- Tablet: 481-768px - Config panel collapsible, popup adapts to smaller screen
+- Mobile: ≤ 480px - Config panel full-width overlay, popup centered
 
 ### Touch Considerations
-- Larger tap targets (44x44px minimum)
-- Swipe gestures for tab switching (future enhancement)
-- Collapsible panels to maximize editor space
+- Larger tap targets for buttons (44x44px minimum)
+- Popup input field sized for mobile keyboards
+- Editor takes full available height
 
 ---
 
@@ -390,81 +337,83 @@ Define shared types in `src/types/` directory.
 
 ### Principles
 - Never crash silently
-- Show user-friendly error messages
+- Show user-friendly error messages in popup
 - Log detailed errors to console
 - Emit error events to EventBus
 
-### AI Errors
-- API errors → show error message, don't modify code
-- Timeout → cancel operation, restore previous state
-
----
-
-## Testing Strategy (Future)
-
-### Unit Tests
-- Each module in isolation
-- Mock dependencies via interfaces
-
-### Integration Tests
-- Event flow testing
-- State transitions
-
-### Manual Testing
-- Mobile browsers
-- File System API support
-- Different LLM endpoints
+### AI Request Errors
+- Network failures → show error in popup, don't modify code
+- API errors → display error message to user
+- Invalid API config → prompt user to configure endpoint/key
+- Timeout → cancel operation, clear highlight
 
 ---
 
 ## Performance Considerations
 
-### Debouncing
-- Auto-save: debounce editor changes (500ms)
-- API calls: prevent duplicate requests
+### Editor Performance
+- CodeMirror handles large files efficiently
+- Minimal extensions to keep editor lightweight
 
-### Memory Management
-- Dispose CodeMirror instances when tabs close
-- Limit tab count (warn after 10 tabs)
+### API Calls
+- No auto-triggering (user must explicitly send)
+- Single request at a time (no queue initially)
+- Simple timeout handling
 
-### Large Files
-- Consider virtual scrolling for huge files (future)
-- Warn before opening files > 1MB
+### Memory
+- Single editor instance (no cleanup complexity)
+- Popup DOM elements reused (not recreated on each open)
 
 ---
 
 ## Security Considerations
 
 ### API Keys
-- Never commit API keys
-- Store in localstorage (user provides)
-
-### File System Access
-- Request permissions explicitly
-- Handle permission denials gracefully
+- Never commit API keys to repo
+- Store in State Manager (user provides via config panel)
+- Consider localStorage for persistence in future
 
 ### Content Security Policy
-- Add CSP headers if hosting remotely
+- Add basic CSP if hosting remotely in future
 - Restrict script sources
 
+---
+
+## Extension Points (Future)
+
+### Features Deferred Post-MVP
+- Multiple tabs/files
+- File saving/loading
+- Keyboard shortcuts
+- More sophisticated AI commands
+- Streaming AI responses
+- Diff view before applying changes
+- Undo/redo for AI operations
+- Dark mode
+- Additional language support
+- Command history
+
+### Why This Is Deferred
+Each feature adds complexity. MVP focuses on core interaction loop: select code → give instruction → apply modification. Once this works smoothly, we can iterate on additional features.
 
 ---
 
 ## Why This Architecture?
 
 ### Modularity
-Each piece has clear boundaries. Easy to understand, test, and modify.
+Each piece has clear boundaries. Easy to understand, test, and modify. Small surface area.
 
 ### Flexibility
-Want to switch from CodeMirror to Monaco? Change EditorAdapter.
-Want different storage? Swap StorageAdapter.
-Want to support Claude API? Extend APIClient.
+- Want to swap CodeMirror? Change EditorAdapter.
+- Want different AI provider? Modify APIClient.
+- Want better popup UI? Change PopupManager.
+- Want keyboard shortcuts? Add to ActionHandler.
 
 ### Maintainability
 SOLID principles mean changes are localized. Adding features doesn't break existing code.
 
-### Scalability
-Event-driven architecture supports complex workflows without tight coupling.
+### Experimentation-Friendly
+AI prompting will require experimentation. Keeping APIClient and prompt construction simple allows rapid iteration without architectural changes.
 
-### Future-Proof
-Ready for refactoring. Interfaces allow swapping implementations. State separated from UI allows adding new UIs (e.g., React later if needed) without rewriting logic.
+### Token-Efficient
+Smaller codebase = less context for AI coding assistants. Modular design means you can focus assistant on one module at a time.
