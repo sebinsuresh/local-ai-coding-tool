@@ -8,3 +8,4 @@ Using:
 - If AI handling gets complex enough, Langgraph/Langchain and a backend
 - LMStudio/llama-server running small models locally
 
+![example screenshot](./images/example1.png)
