@@ -11,6 +11,14 @@ export class ActionHandler {
         modifyBtn?.addEventListener('click', () => {
             this.trigger('openPopup');
         });
+
+        // Global keyboard shortcut: Ctrl+I (or Cmd+I on Mac)
+        window.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') {
+                e.preventDefault();
+                this.trigger('openPopup');
+            }
+        });
     }
 
     public trigger(action: string): void {
